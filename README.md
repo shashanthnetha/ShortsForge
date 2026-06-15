@@ -172,7 +172,7 @@ ShortsForge/
 
 ## 📜 License & Credits
 
-*   **Lead Developer**: **Sha** (Shashanth Netha/Pittala)
-*   **Original Template Contributors**: Special thanks to **Aarav Maloo** and **Lucky Negi** for the initial foundations of the YouTube shorts automation scripts.
+*   **Original Lead Developers**: **Aarav Maloo** and **Lucky Negi** (Original YouTube Shorts automation scripts)
+*   **Dashboard & Feature Enhancements**: **Sha** (Shashanth Netha/Pittala) (Vite/React dashboard, progress stepper, background music mixer, TTS pacing, and error recovery systems)
 
 Distributed under the MIT License. Feel free to use, modify, and build upon this project for your own automation channels!
