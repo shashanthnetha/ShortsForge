@@ -1,0 +1,17 @@
+{
+  "name": "youtube-bot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:images": "node scripts/test-sketch-images.mjs",
+    "test:images:py": ".venv/bin/python scripts/test_sketch_images.py",
+    "short:run": ".venv/bin/python scripts/run_short.py",
+    "dashboard:backend": ".venv/bin/uvicorn dashboard.backend.main:app --host 127.0.0.1 --port 8000 --reload",
+    "dashboard:frontend": "npm --prefix dashboard/frontend run dev",
+    "dashboard": "concurrently \"npm run dashboard:backend\" \"npm run dashboard:frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
