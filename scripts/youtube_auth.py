@@ -35,17 +35,35 @@ def main() -> None:
     token_out = SECRETS / "youtube_token.json"
 
     if not client_secret.is_file():
-        print(
-            "❌ Missing secrets/client_secret.json\n\n"
-            "Steps:\n"
-            "  1. Go to https://console.cloud.google.com/\n"
-            "  2. Create a project (or pick one)\n"
-            "  3. Enable YouTube Data API v3:\n"
-            "     https://console.cloud.google.com/apis/library/youtube.googleapis.com\n"
-            "  4. Go to Credentials → Create OAuth client ID → Desktop app\n"
-            "  5. Download JSON → save as secrets/client_secret.json\n"
-        )
-        sys.exit(1)
+        import os
+        client_id = os.environ.get("YT_CLIENT_ID", "").strip()
+        client_secret_val = os.environ.get("YT_CLIENT_SECRET_VALUE", "").strip()
+        if client_id and client_secret_val:
+            print("🔧 Reconstructing secrets/client_secret.json from .env variables...")
+            SECRETS.mkdir(parents=True, exist_ok=True)
+            data = {
+                "installed": {
+                    "client_id": client_id,
+                    "client_secret": client_secret_val,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                    "redirect_uris": ["http://localhost"]
+                }
+            }
+            client_secret.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        else:
+            print(
+                "❌ Missing secrets/client_secret.json and no credentials in .env\n\n"
+                "Steps:\n"
+                "  1. Go to https://console.cloud.google.com/\n"
+                "  2. Create a project (or pick one)\n"
+                "  3. Enable YouTube Data API v3:\n"
+                "     https://console.cloud.google.com/apis/library/youtube.googleapis.com\n"
+                "  4. Go to Credentials → Create OAuth client ID → Desktop app\n"
+                "  5. Download JSON → save as secrets/client_secret.json\n"
+            )
+            sys.exit(1)
 
     print("Opening browser for Google OAuth…")
     flow = InstalledAppFlow.from_client_secrets_file(str(client_secret), SCOPES)
