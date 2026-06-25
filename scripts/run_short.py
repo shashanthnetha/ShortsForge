@@ -43,13 +43,77 @@ sys.path.insert(0, str(REPO_ROOT))
 load_dotenv(REPO_ROOT / ".env")
 load_dotenv(REPO_ROOT / "scripts" / ".env")
 
-from pipeline.captions import build_srt
+from pipeline.captions import build_ass
 from pipeline.channel_presets import get_preset, list_channel_ids
 from pipeline.edge_tts_synth import synthesize_full
 from pipeline.groq_script import generate_short_pack
 from pipeline.images import DEFAULT_NEGATIVE, full_visual_prompt, save_scene_image, save_scene_video
 from pipeline.render_short import render_vertical_short
 from pipeline.story_history import save_title
+
+
+VOICE_MAP = {
+    "en": {
+        "male": "en-GB-RyanNeural",
+        "female": "en-US-JennyNeural"
+    },
+    "hi": {
+        "male": "hi-IN-MadhurNeural",
+        "female": "hi-IN-SwaraNeural"
+    },
+    "te": {
+        "male": "te-IN-MohanNeural",
+        "female": "te-IN-ShrutiNeural"
+    }
+}
+
+FONT_MAP = {
+    "en": {
+        "file": "BebasNeue-Regular.ttf",
+        "name": "Bebas Neue"
+    },
+    "hi": {
+        "file": "NotoSansDevanagari-Bold.ttf",
+        "name": "Noto Sans Devanagari"
+    },
+    "te": {
+        "file": "NotoSansTelugu-Bold.ttf",
+        "name": "Noto Sans Telugu"
+    }
+}
+
+
+def resolve_voice_and_font(
+    lang: str,
+    gender: str | None,
+    default_voice: str | None = None,
+    default_font_file: str = "CreepsterCaps.ttf",
+    default_font_name: str = "Creepster"
+) -> tuple[str | None, str, str]:
+    """
+    Resolves TTS voice, font file, and font name based on language and gender,
+    falling back to preset defaults if not custom.
+    """
+    lang = lang.lower()
+    
+    # Resolve voice
+    resolved_voice = default_voice
+    if gender and lang in VOICE_MAP:
+        resolved_voice = VOICE_MAP[lang].get(gender.lower(), default_voice)
+    elif not resolved_voice and lang in VOICE_MAP:
+        resolved_voice = VOICE_MAP[lang]["male"]
+        
+    # Resolve font
+    resolved_font_file = default_font_file
+    resolved_font_name = default_font_name
+    
+    if lang in FONT_MAP:
+        # If Hindi or Telugu, or if English is explicitly set and we're switching from non-English
+        if lang in ["hi", "te"] or (lang == "en" and default_font_file in ["NotoSansDevanagari-Bold.ttf", "NotoSansTelugu-Bold.ttf"]):
+            resolved_font_file = FONT_MAP[lang]["file"]
+            resolved_font_name = FONT_MAP[lang]["name"]
+            
+    return resolved_voice, resolved_font_file, resolved_font_name
 
 
 def _render_and_upload(
@@ -81,9 +145,9 @@ def _render_and_upload(
     if total_dur < 25:
         print(f"   ⚠ Audio is {total_dur:.0f}s — might be too short")
 
-    srt_path = run_dir / f"captions{suffix}.srt"
+    srt_path = run_dir / f"captions{suffix}.ass"
     print("④ Captions…")
-    build_srt(sentence_timings, srt_path, total_dur)
+    build_ass(sentence_timings, srt_path, total_dur, font_name=font_name)
 
     video_path = run_dir / f"short{suffix}.mp4"
     print(f"⑤ FFmpeg: rendering 1080×1920 (font={font_name})…")
@@ -115,9 +179,22 @@ def main() -> None:
     ap.add_argument("--upload", action="store_true", help="Upload to YouTube after render.")
     ap.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
     ap.add_argument("--visual-mode", choices=["image", "video"], default=None, help="Force visual generation mode.")
+    ap.add_argument("--language", choices=["en", "hi", "te"], default=None, help="Force target language for generation.")
+    ap.add_argument("--gender", choices=["male", "female"], default=None, help="Force gender of the voice.")
     args = ap.parse_args()
 
     preset = get_preset(args.channel)
+
+    # Ensure sfx assets are downloaded
+    sfx_dir = REPO_ROOT / "assets" / "sfx"
+    if not sfx_dir.exists() or not any(sfx_dir.iterdir()):
+        try:
+            print("🔊 SFX assets missing. Automatically downloading...")
+            from pipeline.download_sfx import main as download_sfx
+            download_sfx()
+        except Exception as e:
+            print(f"   ⚠ Failed to auto-download SFX: {e}")
+
     visual_mode = args.visual_mode or preset.get("visual_mode") or "image"
     print(f"🎬 Visual Mode: {visual_mode}")
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -145,12 +222,15 @@ def main() -> None:
                 print(f"🎲 Random topic from pool: {topic_hint!r}")
 
     variants = preset.get("variants") or []
+    if args.language:
+        variants = []
+        print(f"🌐 Forcing target language: {args.language}")
     primary_video_path: Path | None = None
 
     # ── 1. Script via Groq ───────────────────────────────────────────
     print("① Groq: generating script…")
     pack = generate_short_pack(
-        preset, topic_hint=topic_hint, channel_id=args.channel,
+        preset, topic_hint=topic_hint, channel_id=args.channel, override_language=args.language
     )
     (run_dir / "script.json").write_text(json.dumps(pack, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -220,15 +300,24 @@ def main() -> None:
     if variants:
         for v in variants:
             node = pack["variants"][v["lang"]]
+            
+            resolved_v_voice, resolved_v_font_file, resolved_v_font_name = resolve_voice_and_font(
+                lang=v["lang"],
+                gender=args.gender,
+                default_voice=v.get("tts_voice"),
+                default_font_file=v.get("caption_font", "CreepsterCaps.ttf"),
+                default_font_name=v.get("caption_font_name", "Creepster")
+            )
+            
             _render_and_upload(
                 variant_label=v["label"],
                 narration=node["full_narration"],
                 title=node["youtube_title"],
                 description=node.get("youtube_description", ""),
-                voice=v.get("tts_voice"),
+                voice=resolved_v_voice,
                 rate=v.get("tts_rate"),
-                font_file=v.get("caption_font", "CreepsterCaps.ttf"),
-                font_name=v.get("caption_font_name", "Creepster"),
+                font_file=resolved_v_font_file,
+                font_name=resolved_v_font_name,
                 image_paths=image_paths,
                 run_dir=run_dir,
                 suffix=f"_{v['lang']}",
@@ -237,15 +326,25 @@ def main() -> None:
                 yt_token_env=v.get("yt_token_env", "YT_REFRESH_TOKEN"),
             )
     else:
+        target_lang = args.language or preset.get("language") or "en"
+        
+        resolved_voice, resolved_font_file, resolved_font_name = resolve_voice_and_font(
+            lang=target_lang,
+            gender=args.gender,
+            default_voice=preset.get("tts_voice") or os.environ.get("EDGE_TTS_VOICE"),
+            default_font_file=preset.get("caption_font", "CreepsterCaps.ttf"),
+            default_font_name=preset.get("caption_font_name", "Creepster")
+        )
+        
         primary_video_path = _render_and_upload(
-            variant_label=preset.get("language", "en"),
+            variant_label=target_lang,
             narration=narration,
             title=title,
             description=pack.get("youtube_description", ""),
-            voice=preset.get("tts_voice") or os.environ.get("EDGE_TTS_VOICE"),
+            voice=resolved_voice,
             rate=preset.get("tts_rate") or os.environ.get("EDGE_TTS_RATE"),
-            font_file=preset.get("caption_font", "CreepsterCaps.ttf"),
-            font_name=preset.get("caption_font_name", "Creepster"),
+            font_file=resolved_font_file,
+            font_name=resolved_font_name,
             image_paths=image_paths,
             run_dir=run_dir,
             suffix="",

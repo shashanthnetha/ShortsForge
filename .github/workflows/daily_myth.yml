@@ -14,6 +14,7 @@ on:
 
 env:
   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   DEAPI_TOKEN: ${{ secrets.DEAPI_TOKEN }}
   YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
   YT_CLIENT_SECRET_VALUE: ${{ secrets.YT_CLIENT_SECRET_VALUE }}

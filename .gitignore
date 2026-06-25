@@ -5,3 +5,4 @@ output/
 *.pem
 secrets/
 __pycache__/
+assets/sfx/

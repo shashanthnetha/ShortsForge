@@ -103,6 +103,13 @@ def upload_short(
     Pass `refresh_token_env` to target a different channel (e.g. "YT_REFRESH_TOKEN_HI").
     Falls back to YT_REFRESH_TOKEN if the named env var is unset.
     """
+    # Proactively append reach hashtags if not already present
+    default_tags = ["#shorts", "#viral", "#trending", "#foryou", "#ai"]
+    desc_lower = description.lower()
+    missing_tags = [tag for tag in default_tags if tag not in desc_lower]
+    if missing_tags:
+        description = f"{description.strip()}\n\n{' '.join(missing_tags)}"
+
     creds = _get_creds(refresh_token_env)
     youtube = build("youtube", "v3", credentials=creds)
 

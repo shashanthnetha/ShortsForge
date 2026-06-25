@@ -1,0 +1,59 @@
+name: Daily Sports Short (Rotation)
+
+on:
+  schedule:
+    # Runs daily at 05:00 UTC (10:30 IST)
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+env:
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  DEAPI_TOKEN: ${{ secrets.DEAPI_TOKEN }}
+  # Shared YouTube OAuth app credentials
+  YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+  YT_CLIENT_SECRET_VALUE: ${{ secrets.YT_CLIENT_SECRET_VALUE }}
+  # Default fallback channel token (all sports channels use this by default)
+  YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+
+jobs:
+  generate-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # Restore sports-rotation and story history cache
+      - name: Restore history & rotation cache
+        uses: actions/cache/restore@v4
+        with:
+          path: output/history/
+          key: sports-history-${{ github.run_id }}
+          restore-keys: |
+            sports-history-
+
+      - name: Run Sports Rotation Short
+        run: |
+          python scripts/run_sports_rotation.py
+
+      # Save history & rotation cache back to prevent repeats
+      - name: Save history & rotation cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: output/history/
+          key: sports-history-${{ github.run_id }}
