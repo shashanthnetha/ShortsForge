@@ -16,9 +16,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# List of sports channels to rotate through
+# List of sports channels to rotate through (excluding World Cup which runs daily)
 SPORTS_CHANNELS = [
-    "new_preset_1781632935565", # World Cup Chronicles (Football)
     "f1_stories",               # Formula 1 Racing & Rivalries
     "cricket_stories",          # Cricket Records & Legend Tales
     "sports_universe"           # Sports Anomalies & Olympic Legends

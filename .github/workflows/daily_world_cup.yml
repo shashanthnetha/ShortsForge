@@ -1,0 +1,58 @@
+name: Daily World Cup Short
+
+on:
+  schedule:
+    # Runs daily at 06:00 UTC (11:30 IST)
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+env:
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  DEAPI_TOKEN: ${{ secrets.DEAPI_TOKEN }}
+  # Shared YouTube OAuth credentials
+  YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+  YT_CLIENT_SECRET_VALUE: ${{ secrets.YT_CLIENT_SECRET_VALUE }}
+  YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+
+jobs:
+  generate-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # Restore World Cup history cache to prevent repeat stories
+      - name: Restore history cache
+        uses: actions/cache/restore@v4
+        with:
+          path: output/history/
+          key: story-history-worldcup-${{ github.run_id }}
+          restore-keys: |
+            story-history-worldcup-
+
+      - name: Generate & upload World Cup Short
+        run: |
+          python scripts/run_short.py --channel new_preset_1781632935565 --upload --privacy public
+
+      # Save history cache back to GitHub
+      - name: Save history cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: output/history/
+          key: story-history-worldcup-${{ github.run_id }}
